@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Paddle Tennis Game</title>
+  <style>
+    body { background: #181818; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+    canvas { background: #222; margin: 40px auto; border: 4px solid #eee; display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="800" height="500"></canvas>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width, HEIGHT = canvas.height;
+
+    // Game objects
+    const PADDLE_WIDTH = 16, PADDLE_HEIGHT = 100, PADDLE_SPEED = 7;
+    const BALL_RADIUS = 12, BALL_SPEED = 6;
+
+    let leftPaddle = { x: 24, y: HEIGHT/2 - PADDLE_HEIGHT/2, dy: 0 };
+    let rightPaddle = { x: WIDTH-24-PADDLE_WIDTH, y: HEIGHT/2 - PADDLE_HEIGHT/2, dy: 0 };
+
+    let ball = {
+      x: WIDTH/2, y: HEIGHT/2,
+      dx: BALL_SPEED * (Math.random() > 0.5 ? 1 : -1),
+      dy: BALL_SPEED * (Math.random() * 1.5 - 0.75)
+    };
+
+    let leftScore = 0, rightScore = 0, gameOver = false;
+
+    // Controls
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.key] = true);
+    window.addEventListener('keyup', e => keys[e.key] = false);
+
+    function resetBall(direction = 1) {
+      ball.x = WIDTH/2;
+      ball.y = HEIGHT/2;
+      ball.dx = direction * BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
+      ball.dy = BALL_SPEED * (Math.random() * 1.5 - 0.75);
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      // Player paddle movement
+      if (keys['ArrowUp']) leftPaddle.dy = -PADDLE_SPEED;
+      else if (keys['ArrowDown']) leftPaddle.dy = PADDLE_SPEED;
+      else leftPaddle.dy = 0;
+      leftPaddle.y += leftPaddle.dy;
+      leftPaddle.y = Math.max(0, Math.min(HEIGHT-PADDLE_HEIGHT, leftPaddle.y));
+
+      // AI paddle (simple tracking)
+      if (ball.y < rightPaddle.y + PADDLE_HEIGHT/2)
+        rightPaddle.dy = -PADDLE_SPEED * 0.9;
+      else if (ball.y > rightPaddle.y + PADDLE_HEIGHT/2)
+        rightPaddle.dy = PADDLE_SPEED * 0.9;
+      else
+        rightPaddle.dy = 0;
+      rightPaddle.y += rightPaddle.dy;
+      rightPaddle.y = Math.max(0, Math.min(HEIGHT-PADDLE_HEIGHT, rightPaddle.y));
+
+      // Ball movement
+      ball.x += ball.dx;
+      ball.y += ball.dy;
+
+      // Collide with top/bottom
+      if (ball.y - BALL_RADIUS < 0 || ball.y + BALL_RADIUS > HEIGHT) {
+        ball.dy *= -1;
+        ball.y = Math.max(BALL_RADIUS, Math.min(HEIGHT-BALL_RADIUS, ball.y));
+      }
+
+      // Collide with left paddle
+      if (
+        ball.x - BALL_RADIUS < leftPaddle.x + PADDLE_WIDTH &&
+        ball.y > leftPaddle.y &&
+        ball.y < leftPaddle.y + PADDLE_HEIGHT &&
+        ball.x > leftPaddle.x
+      ) {
+        ball.dx = Math.abs(ball.dx);
+        // Add some "spin"
+        ball.dy += leftPaddle.dy * 0.3;
+      }
+
+      // Collide with right paddle
+      if (
+        ball.x + BALL_RADIUS > rightPaddle.x &&
+        ball.y > rightPaddle.y &&
+        ball.y < rightPaddle.y + PADDLE_HEIGHT &&
+        ball.x < rightPaddle.x + PADDLE_WIDTH
+      ) {
+        ball.dx = -Math.abs(ball.dx);
+        ball.dy += rightPaddle.dy * 0.3;
+      }
+
+      // Score
+      if (ball.x - BALL_RADIUS < 0) {
+        rightScore++;
+        if (rightScore === 5) gameOver = true;
+        resetBall(1);
+      }
+      if (ball.x + BALL_RADIUS > WIDTH) {
+        leftScore++;
+        if (leftScore === 5) gameOver = true;
+        resetBall(-1);
+      }
+    }
+
+    function drawCourt() {
+      ctx.strokeStyle = "#aaa";
+      ctx.setLineDash([10, 10]);
+      ctx.beginPath();
+      ctx.moveTo(WIDTH/2, 0); ctx.lineTo(WIDTH/2, HEIGHT); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#fff";
+      ctx.strokeRect(0, 0, WIDTH, HEIGHT);
+      ctx.lineWidth = 1;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      drawCourt();
+
+      // Draw paddles
+      ctx.fillStyle = "#4ae";
+      ctx.fillRect(leftPaddle.x, leftPaddle.y, PADDLE_WIDTH, PADDLE_HEIGHT);
+      ctx.fillStyle = "#e44";
+      ctx.fillRect(rightPaddle.x, rightPaddle.y, PADDLE_WIDTH, PADDLE_HEIGHT);
+
+      // Draw ball
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_RADIUS, 0, Math.PI*2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+      ctx.strokeStyle = "#888";
+      ctx.stroke();
+
+      // Draw scores
+      ctx.fillStyle = "#fff";
+      ctx.font = "36px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(leftScore, WIDTH/2 - 100, 60);
+      ctx.fillText(rightScore, WIDTH/2 + 100, 60);
+
+      // Game over message
+      if (gameOver) {
+        ctx.font = "48px Arial";
+        ctx.fillText(
+          leftScore === 5 ? "You Win!" : "Computer Wins!",
+          WIDTH/2, HEIGHT/2
+        );
+        ctx.font = "24px Arial";
+        ctx.fillText("Refresh to play again", WIDTH/2, HEIGHT/2 + 50);
+      }
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    resetBall();
+    gameLoop();
+  </script>
+</body>
+</html>
